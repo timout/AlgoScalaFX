@@ -9,10 +9,10 @@ import scalafx.geometry.{HPos, VPos}
 import scalafx.scene.control.MenuItem._
 import scalafx.scene.control.{ContextMenu, MenuItem}
 import scalafx.scene.effect.{Light, Lighting}
-import scalafx.scene.layout.Region
+import scalafx.scene.layout.{GridPane, Region}
 import scalafx.util.Duration
 
-class BoardSquare(val point: Point, _owner: ObjectProperty[Owner]) extends Region {
+class BoardSquare(val point: Point, _owner: ObjectProperty[Owner], board: GridPane) extends Region {
 
   private val model = PathFinderModel
 
@@ -21,6 +21,7 @@ class BoardSquare(val point: Point, _owner: ObjectProperty[Owner]) extends Regio
   private val start = "-fx-background-color: #00FFFF"
   private val finish = "-fx-background-color: blue"
   private val candidate_path = "-fx-background-color: darkgrey"
+  private val frontier_path = "-fx-background-color: yellow"
   private val path = "-fx-background-color: white"
 
   val owner = new ObjectProperty[Owner](this, "owner", EMPTY)
@@ -30,6 +31,7 @@ class BoardSquare(val point: Point, _owner: ObjectProperty[Owner]) extends Regio
     () => owner.value match {
       case PATH => path
       case CANDIDATE_PATH => candidate_path
+      case FRONTIER_PATH => frontier_path
       case OBSTACLE => obstacle
       case START => start
       case FINISH => finish
@@ -71,44 +73,62 @@ class BoardSquare(val point: Point, _owner: ObjectProperty[Owner]) extends Regio
   prefWidth = 200
 
   onMouseEntered = () => {
-    //if (ReversiModel.legalMove(x, y).get) {
-      highlightTransition.rate() = 1
-      highlightTransition.play()
-//    if ( BoardSquare.isDragging ) {
-//      model.setObstacle(point)
-//    }
-    //}
+    highlightTransition.rate() = 1
+    highlightTransition.play()
   }
 
 
-  onMouseExited = () => {
+  onMouseExited = (e) => {
     highlightTransition.rate = -1
     highlightTransition.play()
   }
 
-//  onMouseDragged = (e) => {
-//    //model.setObstacle(point)
-//    println(s"${point} mouse dragged")
-//    e.consume()
-//  }
+  onMouseDragged = (e) => {
+    val y = board.getLayoutY
+    for ( node <- board.getChildren ) {
+        if ( node.getBoundsInParent.contains(e.getSceneX, e.getSceneY - y) ) {
+          val c = GridPane.getColumnIndex(node)
+          val r = GridPane.getRowIndex(node)
+          model.setPointDragValue(Point(c, r))
+          //println(s"node over: $r :   $c  $node")
+        }
+    }
+    //println(s"${point} mouse dragged ${ e.getSceneX} : ${e.getSceneY}")
+  }
 
 //  onMouseDragEntered = (e) => {
 //    //model.setObstacle(point)
-//    println(s"${point} mouse drag enterd")
-//    e.consume()
+//    println(s"${point} mouse drag enterd ${ e.getSceneX} : ${e.getSceneY}")
+//    //e.consume()
 //  }
 //
 //  onDragDetected = (e) => {
-//    BoardSquare.isDragging = true;
-//    println(s"${point} drag detected")
+//    //BoardSquare.isDragging = true;
+//    println(s"${point} drag detected ${ e.getSceneX} : ${e.getSceneY}")
 //    //e.consume()
 //    this.mouseTransparent() = true
+//  }
+//
+//  onDragExited = (e) => {
+//    println(s"${point} drag exeted ${ e.getSceneX} : ${e.getSceneY}")
+//  }
+//
+//  onDragDone = (e) => {
+//    println(s"${point} drag done ${ e.getSceneX} : ${e.getSceneY}")
+//  }
+//
+//  onDragDropped = (e) => {
+//    println(s"${point} drag dropped ${ e.getSceneX} : ${e.getSceneY}")
+//  }
+
+//  onMouseDragReleased = (e) => {
+//    println(s"${point} drag released ${ e.getSceneX} : ${e.getSceneY}")
 //  }
 
 //  onDragDone = (e) => {
 //    BoardSquare.isDragging = false
-//    println(s"${point} drag done")
-//    e.consume()
+//    println(s"${point} drag done ${ e.getSceneX} : ${e.getSceneY}")
+//   // e.consume()
 //  }
 //
 //  onMouseDragOver = () => {
@@ -140,8 +160,6 @@ object BoardSquare {
   private val model = PathFinderModel
 
   private var _currentPoint: Option[Point] = Option.empty
-
-  var isDragging: Boolean = false
 
   def currentPoint: Option[Point] = _currentPoint
 

@@ -4,10 +4,8 @@ import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.geometry.{Insets, Pos}
-import scalafx.scene.control.{Button, ChoiceBox}
+import scalafx.scene.control.{Button, ChoiceBox, Label, Tooltip}
 import scalafx.scene.layout._
-import scalafx.scene.paint.Color
-import scalafx.scene.text.{Font, FontWeight, Text}
 import scalafx.scene.{Node, Scene}
 
 object Board extends JFXApp {
@@ -17,12 +15,26 @@ object Board extends JFXApp {
   private val algoChoiceBox = new ChoiceBox[String] {
     prefWidth = 100
     items = model.algorithms
-    onAction = () => {
-      val i = selectionModel().selectedIndex()
-      model.setAlgorithm(i)
-    }
+    onAction = () => model.setAlgorithm(selectionModel().selectedIndex())
+    tooltip = Tooltip("Finder Algorithm")
   }
   algoChoiceBox.selectionModel().selectFirst()
+
+  private val onDragChoice = new ChoiceBox[String] {
+    prefWidth = 100
+    items = model.onDragActions
+    onAction = () => model.setOnDrag(selectionModel().selectedIndex())
+    tooltip = Tooltip("On Mouse Drag Action")
+  }
+  onDragChoice.selectionModel().selectFirst()
+
+  private val sleepTimeBox = new ChoiceBox[String] {
+    prefWidth = 25
+    items = model.sleepTimes
+    onAction = () => model.setSleepTime(selectionModel().selectedIndex())
+    tooltip = Tooltip("Sleep Time")
+  }
+  sleepTimeBox.selectionModel().select(1)
 
   private val findButton = new Button() {
     text = "Find"
@@ -42,6 +54,15 @@ object Board extends JFXApp {
     disable <== model.isRunningState
   }
 
+  private val confPane = new HBox() {
+    padding = Insets(10)
+    spacing = 10
+    children = List(
+      new HBox(new Label("Sleep Time: "), sleepTimeBox),
+      new HBox(new Label("On Drag: "), onDragChoice),
+    )
+  }
+
   private val buttonPane = new HBox() {
     padding = Insets(10)
     spacing = 10
@@ -50,35 +71,14 @@ object Board extends JFXApp {
   }
 
   private val maze = new VBox() {
-    children = Seq( /*createTitle(), */ buttonPane, createBackground(), tiles() )
+    children = Seq( buttonPane, confPane, createBackground(), tiles() )
   }
 
   stage = new PrimaryStage() {
-    scene = new Scene(400, 400) {
+    scene = new Scene(500, 500) {
       title = "Path Finder"
       root = maze
     }
-  }
-
-  private def createTitle() = new TilePane {
-    snapToPixel = false
-    children = List(
-      new StackPane {
-        style = "-fx-background-color: black"
-        children = new Text {
-          text = "Path"
-          font = Font.font(null, FontWeight.Bold, 12)
-          fill = Color.White
-          alignmentInParent = Pos.CenterRight
-        }
-      },
-      new Text {
-        text = "Finder"
-        font = Font.font(null, FontWeight.Bold, 12)
-        alignmentInParent = Pos.CenterLeft
-      })
-    prefTileHeight = 50
-    prefTileWidth <== parent.selectDouble("width") / 2
   }
 
   private def createBackground() = new Region {
@@ -89,7 +89,7 @@ object Board extends JFXApp {
     val board = new GridPane()
     for (i <- 0 until  model.size ; j <- 0 until model.size) {
       val p = Point(i, j)
-      val square = new BoardSquare(p, model.getPointProperty(p))
+      val square = new BoardSquare(p, model.getPointProperty(p), board)
       board.add(square, i, j)
     }
     board

@@ -3,27 +3,41 @@ package timout.path
 import scalafx.beans.property.{BooleanProperty, ObjectProperty}
 import scalafx.collections.ObservableBuffer
 
-
 object PathFinderModel {
 
   val size = 30
 
-  val sleepTime = 25
-
   @volatile var counter = 0
 
   private var finder : Finder = new BreadthFirst()
+  private var onDragAction: Owner = OBSTACLE
+  private var sleepTime = 10
 
   val algorithms: ObservableBuffer[String] = ObservableBuffer(
     "Breadth First",
-    "Manhattan Distance"
+    "Greedy Best First",
+    "A*"
   )
 
   def setAlgorithm(index: Int): Unit = {
     finder = index match {
-      case 1 => new HeuristicSearch()
+      case 1 => new GreedyBestFirstSearch()
+      case 2 => new AStarSearch()
       case _ => new BreadthFirst()
     }
+  }
+
+  val onDragActions: ObservableBuffer[String] = ObservableBuffer("Obstacle", "Empty")
+
+  def setOnDrag(index: Int): Unit = index match {
+    case 0 => onDragAction = OBSTACLE
+    case _ => onDragAction = EMPTY
+  }
+
+  val sleepTimes: ObservableBuffer[String] = ObservableBuffer("0", "10", "20", "30", "40", "50")
+
+  def setSleepTime(index: Int): Unit = {
+    sleepTime = index * 10
   }
 
   private val board = Array.tabulate(size, size)((_, _) => ObjectProperty[Owner](EMPTY))
@@ -50,9 +64,6 @@ object PathFinderModel {
 
   def sleep(): Unit = Thread.sleep(sleepTime)
 
-  def restart(): Unit = {
-  }
-
   def getPointProperty(p: Point): ObjectProperty[Owner] = board(p.y)(p.x)
 
   def startFinder(): Unit = {
@@ -66,9 +77,7 @@ object PathFinderModel {
 
   def reset(): Unit = {
     setRunning(true)
-    for (x <- 0 until  size ; y <- 0 until size) {
-      board(x)(y)() = EMPTY
-    }
+    points.foreach{ p => board(p.y)(p.x)() = EMPTY }
     _startPoint = Point(0,0)
     _finishPoint = Point(size-1, size-1)
     board(0)(0)() = START
@@ -76,22 +85,20 @@ object PathFinderModel {
     setRunning(false)
   }
 
-  val cleanPoint: PartialFunction[Point, Unit] = {
-    case p: Point if board(p.y)(p.x)() == PATH || board(p.y)(p.x)() == CANDIDATE_PATH => board(p.y)(p.x)() = EMPTY
-  }
-
-  val cleanPoint1: PartialFunction[Point, Unit] = (p: Point) => board(p.y)(p.x)() match {
-    case PATH | CANDIDATE_PATH => board(p.y)(p.x)() = EMPTY
+  val cleanPoint: PartialFunction[Point, Unit] = (p: Point) => board(p.y)(p.x)() match {
+    case PATH | CANDIDATE_PATH | FRONTIER_PATH => board(p.y)(p.x)() = EMPTY
   }
 
   def clean(): Unit = {
     setRunning(true)
-    points.collect(cleanPoint1)
+    points.collect(cleanPoint)
     setRunning(false)
   }
 
-  def setObstacle(p: Point): Unit = {
-    if ( ! isRunning ) {
+  def whenStop( f: => Unit ): Unit = if ( ! isRunning ) f
+
+  def setObstacle()(p: Point): Unit = {
+    whenStop {
       val cur: Owner = getPointValue(p)
       cur match {
         case OBSTACLE => setPointValue(p, EMPTY)
@@ -101,24 +108,34 @@ object PathFinderModel {
     }
   }
 
-  def setPathCandidate(p: Point): Unit = {
+  def setPointDragValue(p: Point): Unit = {
+    whenStop {
+      val cur: Owner = getPointValue(p)
+      cur match {
+        case OBSTACLE if onDragAction == EMPTY => setPointValue(p, EMPTY)
+        case EMPTY if onDragAction == OBSTACLE => setPointValue(p, OBSTACLE)
+        case _ =>
+      }
+    }
+  }
+
+  def setPointByFinder(p: Point, value: Owner): Unit = {
     if ( p != startPoint && p != finishPoint ) {
-      board(p.y)(p.x)() = CANDIDATE_PATH
+      board(p.y)(p.x)() = value
       counter += 1
     }
   }
 
-  def setPath(p: Point): Unit = {
-    if ( p != startPoint && p != finishPoint ) {
-      board(p.y)(p.x)() = PATH
-      counter += 1
-    }
-  }
+  def setPathCandidate(p: Point): Unit = setPointByFinder(p, CANDIDATE_PATH)
+
+  def setPathFrontier(p: Point): Unit = setPointByFinder(p, FRONTIER_PATH)
+
+  def setPath(p: Point): Unit = setPointByFinder(p, PATH)
 
   def startPoint: Point = _startPoint
 
-  def startPoint_=(p: Point) {
-    if ( ! isRunning && p != finishPoint ) {
+  def startPoint_=(p: Point): Unit = whenStop {
+    if (p != finishPoint) {
       setPointValue(_startPoint, EMPTY)
       _startPoint = p
       setPointValue(_startPoint, START)
@@ -127,8 +144,8 @@ object PathFinderModel {
 
   def finishPoint: Point = _finishPoint
 
-  def finishPoint_=(p: Point) {
-    if ( ! isRunning && p != startPoint ) {
+  def finishPoint_=(p: Point): Unit = whenStop {
+    if ( p != startPoint ) {
       setPointValue(_finishPoint, EMPTY)
       _finishPoint = p
       setPointValue(_finishPoint, FINISH)
@@ -146,11 +163,6 @@ object PathFinderModel {
   private def setRunning(r: Boolean): Unit = {
     isRunningState() = r
     isRunning = r
-  }
-
-  private def setValue(x: Int, y: Int, value: Int): Unit = {
-    board(x)(y)() = Owner(value)
-    counter += 1
   }
 
 }
